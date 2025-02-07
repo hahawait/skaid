@@ -21,3 +21,7 @@ class DatabaseConnection:
     async def execute(self, query: str, *args) -> str:
         await self.connect()
         return await self.conn.execute(query, *args)
+
+    async def executemany(self, query: str, *args) -> None:
+        await self.connect()
+        return await self.conn.executemany(query, *args)

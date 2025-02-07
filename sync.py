@@ -6,7 +6,7 @@ class DBSynchronizer:
         self.source_db = source_db
         self.target_db = target_db
 
-    async def get_tables(self, db: DatabaseConnection):
+    async def get_tables(self, db: DatabaseConnection) -> set[str]:
         query = """
         SELECT table_name FROM information_schema.tables 
         WHERE table_schema = 'public';
@@ -14,7 +14,7 @@ class DBSynchronizer:
         rows = await db.fetch(query)
         return {row["table_name"] for row in rows}
 
-    async def sync_schemas(self):
+    async def sync_schemas(self) -> None:
         """
         Синхронизирует структуру таблиц между базами данных.
         Создаёт таблицы в целевой БД, если их нет, но они есть в исходной БД.
@@ -41,7 +41,7 @@ class DBSynchronizer:
             print(f"Created table {table}")
 
 
-    async def sync_data(self, table):
+    async def sync_data(self, table) -> None:
         """
         Синхронизирует данные в таблицах между базами данных.
         Добавляет недостающие записи в целевую БД, но не изменяет существующие.
@@ -54,16 +54,33 @@ class DBSynchronizer:
 
         missing_rows = source_set - target_set
 
-        for row in missing_rows:
-            # Строка значений для вставки
-            values = ", ".join(f"'{v}'" for v in row)
+        if not missing_rows:
+            print(f"No new data to insert into {table}")
+            return
 
-            query = f"INSERT INTO {table} VALUES ({values}) ON CONFLICT DO NOTHING;"
-            await self.target_db.execute(query)
+        column_names = ", ".join(source_data[0].keys())
+        placeholders = ", ".join(f"${i+1}" for i in range(len(source_data[0])))
 
-            print(f"Inserted into {table}: {values}")
+        insert_query = f"""
+        INSERT INTO {table} ({column_names}) 
+        VALUES ({placeholders}) 
+        ON CONFLICT DO NOTHING;
+        """
 
-    async def synchronize(self):
+        await self.target_db.executemany(insert_query, list(missing_rows))
+
+        print(f"Inserted {len(missing_rows)} rows into {table}")
+
+        # for row in missing_rows:
+        #     # Строка значений для вставки
+        #     values = ", ".join(f"'{v}'" for v in row)
+
+        #     query = f"INSERT INTO {table} VALUES ({values}) ON CONFLICT DO NOTHING;"
+        #     await self.target_db.execute(query)
+
+        #     print(f"Inserted into {table}: {values}")
+
+    async def synchronize(self) -> None:
         await self.source_db.connect()
         await self.target_db.connect()
 
