@@ -89,21 +89,14 @@ class DBSynchronizer:
             return
 
         try:
-            async with self.target_db.conn.transaction() as tx:
-                try:
-                    await self.sync_schemas()
-
-                    tables = await self.get_tables(self.source_db)
-                    for table in tables:
-                        await self.sync_data(table)
-
-                    await tx.commit()
-                    print("Synchronization completed successfully.")
-                except Exception as e:
-                    print(f"Error during synchronization: {e}")
-                    await tx.rollback()
-        except AttributeError as e:
-            print(f"Transaction error: {e}")
+            async with self.target_db.conn.transaction():
+                await self.sync_schemas()
+                tables = await self.get_tables(self.source_db)
+                for table in tables:
+                    await self.sync_data(table)
+                print("Synchronization completed successfully.")
+        except Exception as e:
+            print(f"Error during synchronization: {e}")
         finally:
             await self.source_db.close()
             await self.target_db.close()
